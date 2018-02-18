@@ -134,12 +134,12 @@ private:
   //void GenerateSigmaPoints();
   void PredictSigmaPoints(double delta_t);
   void PredictMeanAndCovariance();
-  MatrixXd PredictRadarMeasurement();
+  //MatrixXd PredictRadarMeasurement();
 
   //MatrixXd PredictMeasurement(int n_z);
   //void UpdateState(VectorXd z, MatrixXd S);
-  VectorXd CreateRadarMeasurement(MeasurementPackage meas_package);
-  VectorXd CreateLaserMeasurement(MeasurementPackage meas_package);
+  //VectorXd CreateRadarMeasurement(MeasurementPackage meas_package);
+  //VectorXd CreateLaserMeasurement(MeasurementPackage meas_package);
   void SetWeights();
   
   void AugmentedSigmaPoints();
