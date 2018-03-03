@@ -27,6 +27,7 @@ public:
 
   ///* state covariance matrix
   MatrixXd P_;
+  MatrixXd P_laser_;
 
   ///* predicted sigma points matrix
   MatrixXd Xsig_pred_;
