@@ -131,16 +131,10 @@ private:
    * @param meas_package The measurement at k+1
    */
   void UpdateRadar(MeasurementPackage meas_package);
-  
-  //void GenerateSigmaPoints();
+ 
   void PredictSigmaPoints(double delta_t);
   void PredictMeanAndCovariance();
-  //MatrixXd PredictRadarMeasurement();
 
-  //MatrixXd PredictMeasurement(int n_z);
-  //void UpdateState(VectorXd z, MatrixXd S);
-  //VectorXd CreateRadarMeasurement(MeasurementPackage meas_package);
-  //VectorXd CreateLaserMeasurement(MeasurementPackage meas_package);
   void SetWeights();
   
   void AugmentedSigmaPoints();

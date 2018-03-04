@@ -25,30 +25,27 @@ UKF::UKF() {
   x_ = VectorXd(n_x_);
 
   // initial covariance matrix
-  //P_ = MatrixXd::Identity(n_x_, n_x_);
-  P_ = MatrixXd(5, 5);
-  P_ << 0.01, 0, 0, 0, 0,//0.01
-  	    0, 0.01, 0, 0, 0,//0.025
-  	    0, 0, 0.05, 0, 0,//0.045
-  	    0, 0, 0, 0.003, 0,
-  	    0, 0, 0, 0, 0.014;//0.025;
+  P_ = MatrixXd::Identity(n_x_, n_x_);
   
   // Process noise standard deviation longitudinal acceleration in m/s^2
   //std_a_ = 30;
   std_a_ = 1.2;//1; 1.5 and 1.25 was similar to 1. 0.5 was worth. 2 and 1.75 was not good.
+  //std_a_ = 1.3;//0.4;//0.5;//0.75; 0.25 is too low.
   // 0.9 and 0.8,0.75 was not bad.0.7 was bad. 0.95 was not bad.
 
   // Process noise standard deviation yaw acceleration in rad/s^2
   //std_yawdd_ = 30;
-  std_yawdd_ = 0.7;//0.75; // 0.5 was better than 1. 0.1 was useless. no difference with 0.75
+  //std_yawdd_ = 0.7;//0.75; // 0.5 was better than 1. 0.1 was useless. no difference with 0.75
+  std_yawdd_ = 0.5;
+  //std_yawdd_ = 0.15; // 0.1 can not be used.
   // 0.25 was bad.0.4 was worse than 0.5. 0.6 was so so.0.8 is best?
   
   //DO NOT MODIFY measurement noise values below these are provided by the sensor manufacturer.
   // Laser measurement noise standard deviation position1 in m
-  std_laspx_ = 0.5;
+  std_laspx_ = 0.15;
 
   // Laser measurement noise standard deviation position2 in m
-  std_laspy_ = 0.5;
+  std_laspy_ = 0.15;
 
   // Radar measurement noise standard deviation radius in m
   std_radr_ = 0.3;
@@ -142,9 +139,9 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
     // first measurement
     cout << "UKF: " << endl;
     
-    float init_val_v = 5.2;//5;//6;//4;
-    float init_val_yaw = 0;//0.1;//0;
-    float init_val_yawd = 0;//0.1;//0;
+    float init_val_v = 0;
+    float init_val_yaw = 0;
+    float init_val_yawd = 0;
 
     if (meas_package.sensor_type_ == MeasurementPackage::RADAR) {
       /**
@@ -181,8 +178,6 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
   // Before prediction we have to compute the elapsed time between the current and previous observation.
   //compute the time elapsed between the current and previous measurements
 
-
-
   float delta_t = (meas_package.timestamp_ - time_us_) / 1000000.0;
   time_us_ = meas_package.timestamp_;
   
@@ -207,8 +202,8 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
   }
 
   // print the output
-  cout << "x_ = " << x_ << endl;
-  cout << "P_ = " << P_ << endl;
+  //cout << "x_ = " << x_ << endl;
+  //cout << "P_ = " << P_ << endl;
 }
 
 /**
@@ -261,8 +256,7 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
 
   // 2. update state
   
-  VectorXd z = meas_package.raw_measurements_;//VectorXd();
-  //z << meas_package.raw_measurements_[0], meas_package.raw_measurements_[1];
+  VectorXd z = meas_package.raw_measurements_;
   
   VectorXd z_diff = z - z_pred;
   x_ = x_ + (K * z_diff);
@@ -452,7 +446,6 @@ void UKF::SigmaPointPrediction(double delta_t) {
   //predict sigma points
   for (int i = 0; i< 2 * n_aug_ + 1; i++)
   {
-
     //extract values for better readability
     double p_x = Xsig_aug_(0,i);
     double p_y = Xsig_aug_(1,i);
