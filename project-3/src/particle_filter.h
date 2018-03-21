@@ -11,6 +11,8 @@
 
 #include "helper_functions.h"
 
+using namespace std;
+
 struct Particle {
 
 	int id;
@@ -22,11 +24,6 @@ struct Particle {
 	std::vector<double> sense_x;
 	std::vector<double> sense_y;
 };
-
-//struct Coordinate {
-//	double x;
-//	double y;
-//};
 
 class ParticleFilter {
 	
@@ -92,6 +89,8 @@ public:
 	void updateWeights(double sensor_range, double std_landmark[], const std::vector<LandmarkObs> &observations,
 			const Map &map_landmarks);
 	
+	void normarizeWeights();
+	
 	/**
 	 * resample Resamples from the updated set of particles to form
 	 *   the new set of particles.
@@ -116,7 +115,72 @@ public:
 	const bool initialized() const {
 		return is_initialized;
 	}
-	
+
+	const Map FindTargetLandmarks(const Particle& particle, const double sensor_range, const Map &map_landmarks){
+		return map_landmarks;
+	}
+	const double CalcMaxDistance(const Map &target_landmarks) const {
+		return 1000;
+	}
+	//const void assignLandmark(LandmarkObs &observed, const Map &map_landmarks, const int max_dist) const {
+	const Map::single_landmark_s FindNearestLandmark(LandmarkObs &observed, const Map &map_landmarks, const int max_dist) const {
+//std::cout << "FindNearestLandmark" << std::endl;
+
+		double nearest_dist = max_dist;
+		//int nearest_landmark_id = 0;
+		Map::single_landmark_s nearest_landmark;
+		for (Map::single_landmark_s landmark : map_landmarks.landmark_list) {
+//std::cout << "observed.x:" << observed.x << std::endl;
+//std::cout << "observed.y:" << observed.y << std::endl;
+//std::cout << "landmark.x_f:" << landmark.x_f << std::endl;
+//std::cout << "landmark.y_f:" << landmark.y_f << std::endl;
+			double dist = sqrt(std::pow((observed.x - landmark.x_f), 2) + std::pow((observed.y - landmark.y_f), 2));
+//std::cout << "dist:" << dist << std::endl;
+
+			if (dist < nearest_dist) {
+				nearest_dist = dist;
+				//nearest_landmark_id = landmark.id_i;
+				nearest_landmark = landmark;
+			}
+		}
+//std::cout << "nearest_dist:" << nearest_dist << std::endl;
+		return nearest_landmark;
+		//observed.id = nearest_landmark_id;
+	}
+	const void assignLandmarkToObservations(const std::vector<LandmarkObs> &observations, 
+			std::vector<int> &associations, std::vector<double> &sense_x, std::vector<double> &sense_y,
+			const Map &map_landmarks, const int max_dist) const {
+//std::cout << "START assignLandmarkToObservations - observations:" << observations.size() << std::endl;
+		for (LandmarkObs obs : observations) {
+			//assignLandmark(observed, map_landmarks, max_dist);
+			Map::single_landmark_s nearest_landmark = FindNearestLandmark(obs, map_landmarks, max_dist);
+//std::cout << "assignLandmarkToObservations - nearest_landmark.id_i:" << nearest_landmark.id_i << std::endl;
+			associations.push_back(nearest_landmark.id_i);
+			sense_x.push_back(nearest_landmark.x_f);
+			sense_y.push_back(nearest_landmark.y_f);
+//std::cout << "assignLandmarkToObservations - associations:" << associations.size() << std::endl;
+		}
+//std::cout << "END assignLandmarkToObservations - associations:" << associations.size() << std::endl;
+	}
+
+	const std::vector<LandmarkObs> TransformToMapCoordinates(const std::vector<LandmarkObs> &observations, double x_part, double y_part) const {
+//std::cout << "TransformToMapCoordinates" << std::endl;
+		const double theta= -M_PI/2; // -90 degrees
+		
+		std::vector<LandmarkObs> map_observations(observations.size());
+		for (LandmarkObs obs : observations) {
+			double x_obs = obs.x;
+			double y_obs = obs.y;
+			LandmarkObs map_obs;
+			// transform to map x coordinate
+			map_obs.x = x_part + (cos(theta) * x_obs) - (sin(theta) * y_obs);
+			// transform to map y coordinate
+			map_obs.y = y_part + (sin(theta) * x_obs) + (cos(theta) * y_obs);
+			map_observations.push_back(map_obs);
+		}
+		return map_observations;
+	}
+
 	const double GauseNorm(double x, double y) const {
 		return 1/(2*M_PI*x*y);
 	}
@@ -131,30 +195,8 @@ public:
 	const double ParticleWeight(double x, double y, double mu_x, double mu_y, double sig_x, double sig_y) const {
 		return GauseWeight(GauseNorm(x, y), GauseExp(x, y, mu_x, mu_y, sig_x, sig_y));
 	}
-	const LandmarkObs TransformToMapCoordinates(double x_obs, double y_obs, double x_part, double y_part) const {
-
-		const double theta= -M_PI/2; // -90 degrees
-		LandmarkObs obs;
-
-		// transform to map x coordinate
-		obs.x = x_part + (cos(theta) * x_obs) - (sin(theta) * y_obs);
-
-		// transform to map y coordinate
-		obs.y = y_part + (sin(theta) * x_obs) + (cos(theta) * y_obs);
-		
-		return obs;
-	}
-	const std::vector<LandmarkObs> TransformToMapObservations(const std::vector<LandmarkObs> &observations, double x_part, double y_part) const {
-		std::vector<LandmarkObs> map_observations;
-		for (LandmarkObs obs : observations) {
-			double x_obs = obs.x;
-			double y_obs = obs.y;
-			LandmarkObs map_obs = TransformToMapCoordinates(x_obs, y_obs, x_part, y_part);
-			map_observations.push_back(map_obs);
-		}
-		return map_observations;
-	}
 	const double MeasurementProb(Particle particle, Map map_landmarks, double sense_noise) const {
+//std::cout << "MeasurementProb" << std::endl;
 		double prob = 1.0;
 		std::default_random_engine gen;
 		for (Map::single_landmark_s landmark : map_landmarks.landmark_list) {
@@ -162,27 +204,10 @@ public:
 			std::normal_distribution<double> dist_norm(dist, sense_noise);
 			prob *= dist_norm(gen);
 		}
+//std::cout << "MeasurementProb:" << prob << std::endl;
 		return prob;
 	}
-	const void assignLandmark(LandmarkObs &observed, const Map &map_landmarks, const int max_dist) const {
-		double nearest_dist = max_dist;
-		int nearest_landmark_id = 0;
-		for (Map::single_landmark_s landmark : map_landmarks.landmark_list) {
-			double dist = sqrt(std::pow((observed.x - landmark.x_f), 2) + std::pow((observed.y - landmark.y_f), 2));
-			if (dist < nearest_dist) {
-				nearest_dist = dist;
-				nearest_landmark_id = landmark.id_i;
-			}
-		}
-		observed.id = nearest_landmark_id;
-	}
-	const void assignLandmarkToObservations(const std::vector<LandmarkObs> &observations, const Map &map_landmarks, const int max_dist) const {
-		for (LandmarkObs observed : observations) {
-			assignLandmark(observed, map_landmarks, max_dist);
-		}
-	}
+
 };
-
-
 
 #endif /* PARTICLE_FILTER_H_ */

@@ -25,7 +25,7 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
 	// Add random Gaussian noise to each particle.
 	// NOTE: Consult particle_filter.h for more information about this method (and others in this file).
 
-	num_particles = 3;
+	num_particles = 30;
 	particles = std::vector<Particle>(num_particles);
 	
 	default_random_engine gen;
@@ -65,6 +65,8 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 	//  http://en.cppreference.com/w/cpp/numeric/random/normal_distribution
 	//  http://www.cplusplus.com/reference/random/default_random_engine/
 	// Standard deviations for x, y, and theta
+	
+//cout << "START prediction" << endl;
 	double std_x = std_pos[0];
 	double std_y = std_pos[1];
 	double std_theta = std_pos[2];
@@ -72,7 +74,8 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 	default_random_engine gen;
 	for (Particle particle : particles) {
 		double sample_x, sample_y, sample_theta;
-		
+
+//cout << "prediction - Particle1" << endl;			
 		//predicted state values
     	double x_p, y_p;
     	double x, y, theta, orientation;
@@ -82,17 +85,18 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 	    normal_distribution<double> dist_theta(0, std_theta);
 		orientation = theta + yaw_rate + dist_theta(gen);
 		
+//cout << "prediction - Particle2" << endl;
 	    x_p = x + velocity * delta_t * cos(orientation);
 	    y_p = y + velocity * delta_t * sin(orientation);
 
 		normal_distribution<double> dist_x(x_p, std_x);
 		normal_distribution<double> dist_y(y_p, std_y);
 
-
+//cout << "prediction - Particle3" << endl;
 		 sample_x = dist_x(gen);
 		 sample_y = dist_y(gen);
 		 sample_theta = dist_theta(gen);	 
-
+//cout << "prediction - Particle4" << endl;
 		 particle.x = sample_x;
 		 particle.y = sample_y;
 		 particle.theta = sample_theta;
@@ -105,28 +109,11 @@ void ParticleFilter::dataAssociation(std::vector<LandmarkObs> predicted, const s
 	//   observed measurement to this particular landmark.
 	// NOTE: this method will NOT be called by the grading code. But you will probably find it useful to 
 	//   implement this method and use it as a helper during the updateWeights phase.
-	
-	
 	for (Particle particle : particles) {
 		std::vector<int> associations = std::vector<int>(predicted.size());
 		std::vector<double> sense_x = std::vector<double>();
 		std::vector<double> sense_y = std::vector<double>();
 		SetAssociations(particle, associations, sense_x, sense_y);
-	}
-	for(LandmarkObs obs : observations) {
-		double x_obs, y_obs, x_map, y_map, theta, x_part, y_part;
-		x_obs = obs.x;
-		y_obs = obs.y;
-		theta= -M_PI/2; // -90 degrees
-			
-		x_part = 0;
-		y_part = 0;
-
-		// transform to map x coordinate
-		x_map= x_part + (cos(theta) * x_obs) - (sin(theta) * y_obs);
-
-		// transform to map y coordinate
-		y_map= y_part + (sin(theta) * x_obs) + (cos(theta) * y_obs);
 	}
 }
 void ParticleFilter::updateWeights(double sensor_range, double std_landmark[], 
@@ -141,35 +128,40 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 	//   and the following is a good resource for the actual equation to implement (look at equation 
 	//   3.33
 	//   http://planning.cs.uiuc.edu/node99.html
-	std::vector<LandmarkObs> predicted;
-	int max_dist = 100;
-	assignLandmarkToObservations(observations, map_landmarks, max_dist);
-	dataAssociation(predicted, observations);
+
+//cout << "START updateWeights" << endl;
+	//dataAssociation(predicted, observations);
 	for (Particle particle : particles) {
-		double sensor_noise = 0;
-		double prob = MeasurementProb(particle, map_landmarks, sensor_noise );
 		
+//cout << "updateWeights - Particle" << endl;	
+				
 		double x_part = particle.x;
 		double y_part = particle.y;
-		vector<LandmarkObs> map_observations = TransformToMapObservations(observations, x_part, y_part);
-		dataAssociation(predicted, map_observations);
-		/*
-		vector<LandmarkObs> map_observations;
-		for (LandmarkObs obs : observations) {
-			double x_obs = obs.x;
-			double y_obs = obs.y;
-			LandmarkObs map_obs = TransformToMapCoordinates(x_obs, y_obs, x_part, y_part);
-			map_observations.push_back(map_obs);
-		}
-		p.associations = std::vector<int>(predicted.size());
-		*/
+		vector<LandmarkObs> map_observations = TransformToMapCoordinates(observations, x_part, y_part);
+		//map_observations = TransformToMapCoordinates(observations, x_part, y_part);
+		Map target_landmarks = FindTargetLandmarks(particle, sensor_range, map_landmarks);
+		const double max_dist = CalcMaxDistance(target_landmarks);
+		
+		std::vector<int> associations(map_observations.size()); 
+        std::vector<double> sense_x(map_observations.size()); 
+        std::vector<double> sense_y(map_observations.size());  
+		
+		assignLandmarkToObservations(map_observations, associations, sense_x, sense_y, target_landmarks, max_dist);
+		//assignLandmarkToObservations(map_observations, target_landmarks, max_dist);
+//std::cout << "END assignLandmarkToObservations - associations:" << associations.size() << std::endl;
+		particle = SetAssociations(particle, associations, sense_x, sense_y);
+//std::cout << "END SetAssociations" << std::endl;
+		// TODO: Update the weights of each particle using a mult-variate Gaussian distribution
+		//UpdateParticleWeights(particle);
+		//  CHECK
+		double sensor_noise = 0;
+		double prob = MeasurementProb(particle, map_landmarks, sensor_noise );
+//std::cout << "END MeasurementProb" << std::endl;
 	}
-	
-	for (Map::single_landmark_s landmark : map_landmarks.landmark_list) {
-	}
-	// TODO: Update the weights of each particle using a mult-variate Gaussian distribution
-	
 	// Normarize weight
+	normarizeWeights();
+}
+void ParticleFilter::normarizeWeights() {
 }
 
 void ParticleFilter::resample() {
@@ -195,9 +187,15 @@ Particle ParticleFilter::SetAssociations(Particle& particle, const std::vector<i
     // sense_x: the associations x mapping already converted to world coordinates
     // sense_y: the associations y mapping already converted to world coordinates
 
+	particle.associations.clear();
+	particle.sense_x.clear();
+	particle.sense_y.clear();
+	
     particle.associations= associations;
     particle.sense_x = sense_x;
     particle.sense_y = sense_y;
+    
+    return particle;
 }
 
 string ParticleFilter::getAssociations(Particle best)
