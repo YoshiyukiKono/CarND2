@@ -27,7 +27,8 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
 
 	num_particles = 30;
 	particles = std::vector<Particle>(num_particles);
-	
+	weights = std::vector<double>(num_particles);
+
 	default_random_engine gen;
 	// Standard deviations for x, y, and theta
 	double std_x = std[0];
@@ -129,8 +130,12 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 	//   3.33
 	//   http://planning.cs.uiuc.edu/node99.html
 
+// NEED TO USE  double sigma_landmark [2] = {0.3, 0.3}; // Landmark measurement uncertainty [x [m], y [m]]
+//double x_sig = std_landmark[0];
+//double y_sig = std_landmark[1];
 //cout << "START updateWeights" << endl;
 	//dataAssociation(predicted, observations);
+	weights.clear();
 	for (Particle particle : particles) {
 		
 //cout << "updateWeights - Particle" << endl;	
@@ -140,13 +145,13 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 		vector<LandmarkObs> map_observations = TransformToMapCoordinates(observations, x_part, y_part);
 		//map_observations = TransformToMapCoordinates(observations, x_part, y_part);
 		Map target_landmarks = FindTargetLandmarks(particle, sensor_range, map_landmarks);
-		const double max_dist = CalcMaxDistance(target_landmarks);
+		//const double max_dist = CalcMaxDistance(target_landmarks);
 		
 		std::vector<int> associations(map_observations.size()); 
         std::vector<double> sense_x(map_observations.size()); 
         std::vector<double> sense_y(map_observations.size());  
 		
-		assignLandmarkToObservations(map_observations, associations, sense_x, sense_y, target_landmarks, max_dist);
+		assignLandmarkToObservations(map_observations, associations, sense_x, sense_y, target_landmarks);//, max_dist);
 		//assignLandmarkToObservations(map_observations, target_landmarks, max_dist);
 //std::cout << "END assignLandmarkToObservations - associations:" << associations.size() << std::endl;
 		particle = SetAssociations(particle, associations, sense_x, sense_y);
@@ -155,13 +160,24 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 		//UpdateParticleWeights(particle);
 		//  CHECK
 		double sensor_noise = 0;
-		double prob = MeasurementProb(particle, map_landmarks, sensor_noise );
-//std::cout << "END MeasurementProb" << std::endl;
+		double prob = MeasurementProb(particle, map_landmarks, sensor_noise, std_landmark);
+		particle.weight = prob;
+		weights.push_back(prob);
+std::cout << "updateWeights - particle.weight:" <<  particle.weight << std::endl;
 	}
 	// Normarize weight
-	normarizeWeights();
+	//normarizeWeights();
 }
+
 void ParticleFilter::normarizeWeights() {
+std::cout << "normarizeWeights - particles.size():" <<  particles.size() << std::endl;
+	weights.clear();
+	for (Particle particle : particles) {
+std::cout << "normarizeWeights - weights:" <<  particle.weight << std::endl;
+		weights.push_back(particle.weight);
+	}
+std::cout << "normarizeWeights - weights.size():" <<  weights.size() << std::endl;
+	// TODO SOMETHING
 }
 
 void ParticleFilter::resample() {
@@ -171,11 +187,19 @@ void ParticleFilter::resample() {
 	
 	std::random_device rd;
     std::mt19937 gen(rd());
+//std::cout << "resample - weights.begin():" <<  weights[0] << std::endl;
+//std::cout << "resample - weights.end():" <<  weights.end() << std::endl;
+
     std::discrete_distribution<> dst(weights.begin(), weights.end());
     std::vector<Particle> new_particles = std::vector<Particle>(num_particles);
     for(int i = 0; i < num_particles; i++) {
+//std::cout << "resample - dst(gen):" <<  dst(gen) << std::endl;
+    	Particle particle = particles[dst(gen)];
+//std::cout << "resample - particles[dst(gen)].weight:" <<  particle.weight << std::endl;
         new_particles.push_back(particles[dst(gen)]);
     }
+///std::cout << "resample - new_particles.size():" <<  new_particles.size() << std::endl;
+///std::cout << "resample - new_particles[0].weight:" <<  new_particles[0].weight << std::endl;
     particles = new_particles;
 }
 

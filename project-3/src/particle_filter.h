@@ -119,13 +119,21 @@ public:
 	const Map FindTargetLandmarks(const Particle& particle, const double sensor_range, const Map &map_landmarks){
 		return map_landmarks;
 	}
-	const double CalcMaxDistance(const Map &target_landmarks) const {
-		return 1000;
+	const double FindMaxDistance(const LandmarkObs &observed, const Map &map_landmarks) const {
+		double max_dist = 0;
+		for (Map::single_landmark_s landmark : map_landmarks.landmark_list) {
+			double dist = sqrt(std::pow((observed.x - landmark.x_f), 2) + std::pow((observed.y - landmark.y_f), 2));
+			if (dist > max_dist) {
+				max_dist = dist;
+			}
+		}
+		return max_dist;
 	}
-	//const void assignLandmark(LandmarkObs &observed, const Map &map_landmarks, const int max_dist) const {
-	const Map::single_landmark_s FindNearestLandmark(LandmarkObs &observed, const Map &map_landmarks, const int max_dist) const {
-//std::cout << "FindNearestLandmark" << std::endl;
 
+	//const void assignLandmark(LandmarkObs &observed, const Map &map_landmarks, const int max_dist) const {
+	const Map::single_landmark_s FindNearestLandmark(LandmarkObs &observed, const Map &map_landmarks) const {
+//std::cout << "FindNearestLandmark" << std::endl;
+		const double max_dist = FindMaxDistance(observed, map_landmarks);
 		double nearest_dist = max_dist;
 		//int nearest_landmark_id = 0;
 		Map::single_landmark_s nearest_landmark;
@@ -135,9 +143,10 @@ public:
 //std::cout << "landmark.x_f:" << landmark.x_f << std::endl;
 //std::cout << "landmark.y_f:" << landmark.y_f << std::endl;
 			double dist = sqrt(std::pow((observed.x - landmark.x_f), 2) + std::pow((observed.y - landmark.y_f), 2));
+			//double dist = dist(observed.x, observed.y, landmark.x_f, landmark.y_f);
 //std::cout << "dist:" << dist << std::endl;
 
-			if (dist < nearest_dist) {
+			if (dist <= nearest_dist) {
 				nearest_dist = dist;
 				//nearest_landmark_id = landmark.id_i;
 				nearest_landmark = landmark;
@@ -147,13 +156,14 @@ public:
 		return nearest_landmark;
 		//observed.id = nearest_landmark_id;
 	}
+
 	const void assignLandmarkToObservations(const std::vector<LandmarkObs> &observations, 
 			std::vector<int> &associations, std::vector<double> &sense_x, std::vector<double> &sense_y,
-			const Map &map_landmarks, const int max_dist) const {
+			const Map &map_landmarks) const {
 //std::cout << "START assignLandmarkToObservations - observations:" << observations.size() << std::endl;
 		for (LandmarkObs obs : observations) {
 			//assignLandmark(observed, map_landmarks, max_dist);
-			Map::single_landmark_s nearest_landmark = FindNearestLandmark(obs, map_landmarks, max_dist);
+			Map::single_landmark_s nearest_landmark = FindNearestLandmark(obs, map_landmarks);
 //std::cout << "assignLandmarkToObservations - nearest_landmark.id_i:" << nearest_landmark.id_i << std::endl;
 			associations.push_back(nearest_landmark.id_i);
 			sense_x.push_back(nearest_landmark.x_f);
@@ -192,22 +202,33 @@ public:
 	const double GauseWeight(double gause_norm, double gause_exp) const {
 		return gause_norm*exp(gause_exp);
 	}
-	const double ParticleWeight(double x, double y, double mu_x, double mu_y, double sig_x, double sig_y) const {
+	const double CalcWeight(double x, double y, double mu_x, double mu_y, double sig_x, double sig_y) const {
 		return GauseWeight(GauseNorm(x, y), GauseExp(x, y, mu_x, mu_y, sig_x, sig_y));
 	}
-	const double MeasurementProb(Particle particle, Map map_landmarks, double sense_noise) const {
+	//const double MeasurementProb(Particle particle, Map map_landmarks, double sense_noise) const {
+	const double MeasurementProb(Particle particle, Map map_landmarks, double sense_noise, double std_landmark[]) const {
 //std::cout << "MeasurementProb" << std::endl;
 		double prob = 1.0;
+		double sig_x = std_landmark[0];
+		double sig_y = std_landmark[1];
 		std::default_random_engine gen;
-		for (Map::single_landmark_s landmark : map_landmarks.landmark_list) {
-			double dist = sqrt(std::pow((particle.x - landmark.x_f), 2) + std::pow((particle.y - landmark.y_f), 2));
-			std::normal_distribution<double> dist_norm(dist, sense_noise);
-			prob *= dist_norm(gen);
+		for (int i = 0; i < particle.associations.size(); i++) {
+			double landmark_id = particle.associations[i];
+			//double x = particle.sense_x[i];
+			//double y = particle.sense_y[i];
+			Map::single_landmark_s landmark = map_landmarks.landmark_list[landmark_id - 1];
+			double weight = CalcWeight(particle.sense_x[i], particle.sense_y[i], landmark.x_f, landmark.y_f, sig_x, sig_y);
+			//std::normal_distribution<double> dist_norm(weight, sense_noise);
+//std::cout << "MeasurementProb:" << weight << std::endl;
+			if(!isinf(weight)) {
+				prob *= weight;//dist_norm(weight);
+			} else {
+				//std::cout << "MeasurementProb INF:" << weight << particle.sense_x[i] << particle.sense_y[i] << landmark.x_f << landmark.y_f << endl;
+			}
 		}
 //std::cout << "MeasurementProb:" << prob << std::endl;
 		return prob;
 	}
-
 };
 
 #endif /* PARTICLE_FILTER_H_ */
