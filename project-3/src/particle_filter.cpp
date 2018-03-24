@@ -25,7 +25,7 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
 	// Add random Gaussian noise to each particle.
 	// NOTE: Consult particle_filter.h for more information about this method (and others in this file).
 
-	num_particles = 100;//30;
+	num_particles = 200;//30;
 	particles = std::vector<Particle>(num_particles);
 	weights = std::vector<double>(num_particles);
 
@@ -72,6 +72,9 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 	double std_x = std_pos[0];
 	double std_y = std_pos[1];
 	double std_theta = std_pos[2];
+	normal_distribution<double> dist_x(0, std_x);
+	normal_distribution<double> dist_y(0, std_y);
+	normal_distribution<double> dist_theta(0, std_theta);
 
 	default_random_engine gen;
 	for (Particle& particle : particles) {
@@ -97,14 +100,17 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 			x_p = x + velocity * delta_t * cos(orientation);
 			y_p = y + velocity * delta_t * sin(orientation);
 		}
-		normal_distribution<double> dist_x(x_p, std_x);
-		normal_distribution<double> dist_y(y_p, std_y);
 
-		normal_distribution<double> dist_theta(orientation, std_theta);
-
-		sample_x = dist_x(gen);
-		sample_y = dist_y(gen);
-		sample_theta = dist_theta(gen);
+		//normal_distribution<double> dist_x(x_p, std_x);
+		//normal_distribution<double> dist_y(y_p, std_y);
+		//normal_distribution<double> dist_theta(orientation, std_theta);
+		//sample_x = dist_x(gen);
+		//sample_y = dist_y(gen);
+		//sample_theta = dist_theta(gen);
+		
+		sample_x = x_p + dist_x(gen);
+		sample_y = y_p + dist_y(gen);
+		sample_theta = orientation + dist_theta(gen);
 		//sample_theta = orientation;//dist_theta(gen);	 
 
 		particle.x = sample_x;
@@ -141,7 +147,7 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 
 	weights.clear();
 	int i = 0;
-cout << "updateWeights - Particle" << particles.size() << endl;
+cout << "updateWeights - Particle:" << particles.size() << " - observations.size():"  << observations.size() << endl;
 	for (Particle& particle : particles) {
 
 		vector<LandmarkObs> map_observations = TransformToMapCoordinates(observations, particle);
@@ -155,8 +161,9 @@ cout << "updateWeights - Particle" << particles.size() << endl;
 		assignLandmarkToObservations(map_observations, associations, sense_x, sense_y, target_landmarks);
 
 		SetAssociations(particle, associations, sense_x, sense_y);
-		double sensor_noise = 0;
-		double prob = MeasurementProb(particle, map_landmarks, sensor_noise, std_landmark);
+		//double sensor_noise = 0;
+		//double prob = MeasurementProb(particle, map_landmarks, sensor_noise, std_landmark);
+		double prob = MeasurementProb(particle, map_landmarks, std_landmark);
 		particle.weight = prob;
 		/////
 		//particle.associations.clear();
@@ -188,11 +195,14 @@ void ParticleFilter::resample() {
 
 	std::random_device rd;
     std::mt19937 gen(rd());
+	//default_random_engine gen;
 
     std::discrete_distribution<> dst(weights.begin(), weights.end());
-    std::vector<Particle> new_particles = std::vector<Particle>(num_particles);
+    //std::vector<Particle> new_particles = std::vector<Particle>(num_particles);
+    std::vector<Particle> new_particles(num_particles);
     for(int i = 0; i < num_particles; i++) {
-        new_particles[i] = particles[dst(gen)];
+    	int p_id = dst(gen);
+        new_particles[i] = particles[p_id];
     }
     particles = new_particles;
 

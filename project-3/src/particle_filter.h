@@ -119,12 +119,14 @@ public:
 	const Map FindTargetLandmarks(const Particle& particle, const double sensor_range, const Map &map_landmarks){
 		Map target_landmark;
 		for (Map::single_landmark_s landmark : map_landmarks.landmark_list) {
-			double dist = sqrt(std::pow((particle.x - landmark.x_f), 2) + std::pow((particle.y - landmark.y_f), 2));
-			if (dist < sensor_range) {
+			//double dist = sqrt(std::pow((particle.x - landmark.x_f), 2) + std::pow((particle.y - landmark.y_f), 2));
+			double dist_p_to_l = dist(particle.x, particle.y, landmark.x_f, landmark.y_f);
+			if (dist_p_to_l <= sensor_range) {
 				target_landmark.landmark_list.push_back(landmark);
 			}
 		}
-		return target_landmark;
+		//return target_landmark;
+		return map_landmarks;
 	}
 
 	const double FindMaxDistance(const LandmarkObs &observed, const Map &map_landmarks) const {
@@ -140,16 +142,18 @@ public:
 
 	const Map::single_landmark_s FindNearestLandmark(LandmarkObs &observed, const Map &map_landmarks) const {
 
-		const double max_dist = FindMaxDistance(observed, map_landmarks);
-		double nearest_dist = max_dist;
+		//const double max_dist = FindMaxDistance(observed, map_landmarks);
+		double nearest_dist = 0;//max_dist;
 
 		Map::single_landmark_s nearest_landmark;
-		for (Map::single_landmark_s landmark : map_landmarks.landmark_list) {
-
-			double dist = sqrt(std::pow((observed.x - landmark.x_f), 2) + std::pow((observed.y - landmark.y_f), 2));
-
-			if (dist <= nearest_dist) {
-				nearest_dist = dist;
+		//for (Map::single_landmark_s landmark : map_landmarks.landmark_list) {
+		for (int i = 0; i < map_landmarks.landmark_list.size(); i++) {
+			Map::single_landmark_s landmark = map_landmarks.landmark_list[i];
+			//double dist_check = sqrt(std::pow((observed.x - landmark.x_f), 2) + std::pow((observed.y - landmark.y_f), 2));
+			//double dist_check = dist(observed.x, observed.y, landmark.x_f, landmark.y_f);
+			double dist_check = dist(observed.x, observed.y, landmark.x_f, landmark.y_f);
+			if ( i == 0 || dist_check <= nearest_dist) {
+				nearest_dist = dist_check;
 				//nearest_landmark_id = landmark.id_i;
 				nearest_landmark = landmark;
 			}
@@ -169,6 +173,8 @@ public:
 			associations.push_back(nearest_landmark.id_i);
 			sense_x.push_back(nearest_landmark.x_f);
 			sense_y.push_back(nearest_landmark.y_f);
+			//sense_x.push_back(obs.x);
+			//sense_y.push_back(obs.y);
 		}
 	}
 
@@ -180,44 +186,53 @@ public:
 		//double theta = particle.theta;
 		
 		std::vector<LandmarkObs> map_observations(observations.size());
-		for (LandmarkObs obs : observations) {
-			double x_obs = obs.x;
-			double y_obs = obs.y;
-			LandmarkObs map_obs;
+		//for (LandmarkObs obs : observations) {
+		for (int i = 0; i < observations.size(); i++) {
+			//double x_obs = obs.x;
+			//double y_obs = obs.y;
+			//LandmarkObs map_obs;
 			// transform to map x coordinate
-			map_obs.x = x_part + (cos(theta) * x_obs) - (sin(theta) * y_obs);
+			//map_obs.x = x_part + (cos(theta) * x_obs) - (sin(theta) * y_obs);
 			// transform to map y coordinate
-			map_obs.y = y_part + (sin(theta) * x_obs) + (cos(theta) * y_obs);
-			map_observations.push_back(map_obs);
+			//map_obs.y = y_part + (sin(theta) * x_obs) + (cos(theta) * y_obs);
+			//map_observations.push_back(map_obs);
+			// transform to map x coordinate
+			double x_obs = observations[i].x;
+			double y_obs = observations[i].y;
+			map_observations[i].x = x_part + (cos(theta) * x_obs) - (sin(theta) * y_obs);
+			// transform to map y coordinate
+			map_observations[i].y = y_part + (sin(theta) * x_obs) + (cos(theta) * y_obs);
 		}
 		return map_observations;
 	}
 
-	const double GauseNorm(double x, double y) const {
-		return 1/(2*M_PI*x*y);
+	const double GauseNorm(double sig_x, double sig_y) const {
+		return 1/(2*M_PI * sig_x * sig_y);
 	}
 	
 	const double GauseExp(double x, double y, double mu_x, double mu_y, double sig_x, double sig_y) const {
-		return -1*std::pow((x - mu_x), 2)/(2*std::pow(sig_x, 2)) + std::pow((y - mu_y), 2)/(2*std::pow(sig_y, 2));
+		return -1*(std::pow((x - mu_x), 2)/(2*std::pow(sig_x, 2)) + std::pow((y - mu_y), 2)/(2*std::pow(sig_y, 2)));
 	}
 	
 	const double GauseWeight(double gause_norm, double gause_exp) const {
 		return gause_norm*exp(gause_exp);
 	}
 	const double CalcWeight(double x, double y, double mu_x, double mu_y, double sig_x, double sig_y) const {
-		return GauseWeight(GauseNorm(x, y), GauseExp(x, y, mu_x, mu_y, sig_x, sig_y));
+		return GauseWeight(GauseNorm(sig_x, sig_y), GauseExp(x, y, mu_x, mu_y, sig_x, sig_y));
 	}
 
-	const double MeasurementProb(Particle& particle, Map map_landmarks, double sense_noise, double std_landmark[]) const {
+	//const double MeasurementProb(Particle& particle, Map map_landmarks, double sense_noise, double std_landmark[]) const {
+	const double MeasurementProb(Particle& particle, Map map_landmarks, double std_landmark[]) const {
+
 		double prob = 1.0;
 		double sig_x = std_landmark[0];
 		double sig_y = std_landmark[1];
-		std::default_random_engine gen;
+		//std::default_random_engine gen;
 		for (int i = 0; i < particle.associations.size(); i++) {
 			double landmark_id = particle.associations[i];
 			Map::single_landmark_s landmark = map_landmarks.landmark_list[landmark_id - 1];
 			double weight = CalcWeight(particle.sense_x[i], particle.sense_y[i], landmark.x_f, landmark.y_f, sig_x, sig_y);
-			std::normal_distribution<double> dist_norm(weight, sense_noise);
+			//std::normal_distribution<double> dist_norm(weight, sense_noise);
 			if(!isinf(weight)) {
 				prob *= weight;//dist_norm(weight);
 				//
