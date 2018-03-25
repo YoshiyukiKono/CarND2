@@ -77,7 +77,7 @@ public:
 	 * @param observations Vector of landmark observations
 	 */
 	//void dataAssociation(std::vector<LandmarkObs> predicted, std::vector<LandmarkObs>& observations);
-	void dataAssociation(std::vector<LandmarkObs> predicted, const std::vector<LandmarkObs>& observations);
+	//void dataAssociation(std::vector<LandmarkObs> predicted, const std::vector<LandmarkObs>& observations);
 	/**
 	 * updateWeights Updates the weights for each particle based on the likelihood of the 
 	 *   observed measurements. 
@@ -88,8 +88,7 @@ public:
 	 */
 	void updateWeights(double sensor_range, double std_landmark[], const std::vector<LandmarkObs> &observations,
 		const Map &map_landmarks);
-	
-	void normarizeWeights();
+
 	
 	/**
 	 * resample Resamples from the updated set of particles to form
@@ -101,8 +100,8 @@ public:
 	 * Set a particles list of associations, along with the associations calculated world x,y coordinates
 	 * This can be a very useful debugging tool to make sure transformations are correct and assocations correctly connected
 	 */
-	Particle SetAssociations(Particle& particle, const std::vector<int>& associations,
-		                     const std::vector<double>& sense_x, const std::vector<double>& sense_y);
+	//Particle SetAssociations(Particle& particle, const std::vector<int>& associations,
+	//	                     const std::vector<double>& sense_x, const std::vector<double>& sense_y);
 
 	
 	std::string getAssociations(Particle best);
@@ -119,6 +118,24 @@ public:
 private:
 
 	default_random_engine gen;
+	
+	double sig_x;
+	double sig_y;
+	double sig_x_denom;
+	double sig_y_denom;
+	double gause_norm;
+
+	void SetAssociations(Particle& particle, const std::vector<int>& associations,
+		                     const std::vector<double>& sense_x, const std::vector<double>& sense_y);
+	void SetMeasurementUncertainty(const double sig_x, const double sig_y);
+
+	double GauseExp(const double x, const double y, const double mu_x, const double mu_y);
+
+	double CalcWeight(const double x, const double y, const double mu_x, const double mu_y);
+
+	double MeasurementProb(Particle& particle, Map map_landmarks);
+
+	void NormarizeWeights();
 
 	const Map FindTargetLandmarks(const Particle& particle, const double sensor_range, const Map &map_landmarks){
 		Map target_landmark;
@@ -146,7 +163,7 @@ private:
 		return nearest_landmark;
 	}
 
-	const void assignLandmarkToObservations(const std::vector<LandmarkObs> &observations, 
+	const void AssignLandmarkToObservations(const std::vector<LandmarkObs> &observations, 
 			std::vector<int> &associations, std::vector<double> &sense_x, std::vector<double> &sense_y,
 			const Map &map_landmarks) const {
 		associations.clear();
@@ -162,47 +179,24 @@ private:
 
 	const std::vector<LandmarkObs> TransformToMapCoordinates(const std::vector<LandmarkObs> &observations, Particle& particle) const {
 
-		double x_part = particle.x;
-		double y_part = particle.y;
-		double theta = particle.theta;
+		const double x_part = particle.x;
+		const double y_part = particle.y;
+		const double theta = particle.theta;
 		
 		std::vector<LandmarkObs> map_observations(observations.size());
 		for (int i = 0; i < observations.size(); i++) {
-			double x_obs = observations[i].x;
-			double y_obs = observations[i].y;
+			const double x_obs = observations[i].x;
+			const double y_obs = observations[i].y;
 			map_observations[i].x = x_part + (cos(theta) * x_obs) - (sin(theta) * y_obs);
 			map_observations[i].y = y_part + (sin(theta) * x_obs) + (cos(theta) * y_obs);
 		}
 		return map_observations;
 	}
-
-	const double GauseNorm(double sig_x, double sig_y) const {
+	const double GauseNorm(const double sig_x, const double sig_y) const {
 		return 1/(2*M_PI * sig_x * sig_y);
 	}
-	
-	const double GauseExp(double x, double y, double mu_x, double mu_y, double sig_x, double sig_y) const {
-		return -1*(std::pow((x - mu_x), 2)/(2*std::pow(sig_x, 2)) + std::pow((y - mu_y), 2)/(2*std::pow(sig_y, 2)));
-	}
-	
-	const double GauseWeight(double gause_norm, double gause_exp) const {
-		return gause_norm*exp(gause_exp);
-	}
-	const double CalcWeight(double x, double y, double mu_x, double mu_y, double sig_x, double sig_y) const {
-		return GauseWeight(GauseNorm(sig_x, sig_y), GauseExp(x, y, mu_x, mu_y, sig_x, sig_y));
-	}
-
-	const double MeasurementProb(Particle& particle, Map map_landmarks, double std_landmark[]) const {
-
-		double prob = 1.0;
-		double sig_x = std_landmark[0];
-		double sig_y = std_landmark[1];
-		for (int i = 0; i < particle.associations.size(); i++) {
-			double landmark_id = particle.associations[i];
-			Map::single_landmark_s landmark = map_landmarks.landmark_list[landmark_id - 1];
-			double weight = CalcWeight(particle.sense_x[i], particle.sense_y[i], landmark.x_f, landmark.y_f, sig_x, sig_y);
-			prob *= weight;
-		}
-		return prob;
+	const double CalcDenom(const double sig) const {
+		return 2*std::pow(sig, 2);
 	}
 };
 

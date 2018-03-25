@@ -29,7 +29,6 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
 	particles = std::vector<Particle>(num_particles);
 	weights = std::vector<double>(num_particles);
 
-	//default_random_engine gen;
 	// Standard deviations for x, y, and theta
 	double std_x = std[0];
 	double std_y = std[1];
@@ -79,15 +78,13 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 	const double velocity_per_yaw_rate = velocity/yaw_rate;
 	const double velocity_by_delta_t = velocity * delta_t;
 
-	//default_random_engine gen;
 	for (Particle& particle : particles) {
 
 		//predicted state values
-		double x_p, y_p;
-		double x, y, theta, orientation;
-		x = particle.x;
-		y = particle.y;
-		theta = particle.theta;
+		double x_p, y_p, orientation;
+		const double x = particle.x;
+		const double y = particle.y;
+		const double theta = particle.theta;
 
 		if (fabs(yaw_rate) > 0.001) {
 			x_p = x + velocity_per_yaw_rate * (sin(theta + yaw_rate_by_delta_t) - sin(theta));
@@ -105,12 +102,12 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 	}
 
 }
-void ParticleFilter::dataAssociation(std::vector<LandmarkObs> predicted, const std::vector<LandmarkObs>& observations) {
+//void ParticleFilter::dataAssociation(std::vector<LandmarkObs> predicted, const std::vector<LandmarkObs>& observations) {
 	// TODO: Find the predicted measurement that is closest to each observed measurement and assign the 
 	//   observed measurement to this particular landmark.
 	// NOTE: this method will NOT be called by the grading code. But you will probably find it useful to 
 	//   implement this method and use it as a helper during the updateWeights phase.
-}
+//}
 void ParticleFilter::updateWeights(double sensor_range, double std_landmark[], 
 		const std::vector<LandmarkObs> &observations, const Map &map_landmarks) {
 	// TODO: Update the weights of each particle using a mult-variate Gaussian distribution. You can read
@@ -124,6 +121,7 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 	//   3.33
 	//   http://planning.cs.uiuc.edu/node99.html
 
+	SetMeasurementUncertainty(std_landmark[0], std_landmark[1]);
 	weights.clear();
 	for (Particle& particle : particles) {
 
@@ -133,20 +131,19 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 		std::vector<double> sense_x(map_observations.size()); 
 		std::vector<double> sense_y(map_observations.size());  
 
-		//Map target_landmarks = FindTargetLandmarks(particle, sensor_range, map_landmarks);
-		//assignLandmarkToObservations(map_observations, associations, sense_x, sense_y, target_landmarks);
-		assignLandmarkToObservations(map_observations, associations, sense_x, sense_y, map_landmarks);
+		Map target_landmarks = FindTargetLandmarks(particle, sensor_range, map_landmarks);
+		AssignLandmarkToObservations(map_observations, associations, sense_x, sense_y, target_landmarks);
 
 		SetAssociations(particle, associations, sense_x, sense_y);
-		double prob = MeasurementProb(particle, map_landmarks, std_landmark);
+		const double prob = MeasurementProb(particle, map_landmarks);
 		particle.weight = prob;
 		weights.push_back(prob);
 	}
 
-	normarizeWeights();
+	NormarizeWeights();
 }
 
-void ParticleFilter::normarizeWeights() {
+void ParticleFilter::NormarizeWeights() {
 	weights.clear();
 	double weight_sum = 0;
 	for (Particle& particle : particles) {
@@ -165,7 +162,6 @@ void ParticleFilter::resample() {
 
 	std::random_device rd;
     std::mt19937 gen(rd());
-	//default_random_engine gen;
 
 	std::discrete_distribution<> dst(weights.begin(), weights.end());
 	std::vector<Particle> new_particles(num_particles);
@@ -177,7 +173,8 @@ void ParticleFilter::resample() {
 
 }
 
-Particle ParticleFilter::SetAssociations(Particle& particle, const std::vector<int>& associations, 
+//Particle ParticleFilter::SetAssociations(const Particle& particle, const std::vector<int>& associations, 
+void ParticleFilter::SetAssociations(Particle& particle, const std::vector<int>& associations, 
                                      const std::vector<double>& sense_x, const std::vector<double>& sense_y)
 {
     //particle: the particle to assign each listed association, and association's (x,y) world coordinates mapping to
@@ -193,7 +190,7 @@ Particle ParticleFilter::SetAssociations(Particle& particle, const std::vector<i
 	particle.sense_x = sense_x;
 	particle.sense_y = sense_y;
 
-	return particle;
+	return;// particle;
 }
 
 string ParticleFilter::getAssociations(Particle best)
@@ -222,4 +219,31 @@ string ParticleFilter::getSenseY(Particle best)
 	string s = ss.str();
 	s = s.substr(0, s.length()-1);  // get rid of the trailing space
 	return s;
+}
+
+void ParticleFilter::SetMeasurementUncertainty(const double sig_x, const double sig_y) {
+	this->sig_x = sig_x;
+	this->sig_y = sig_y;
+	gause_norm = GauseNorm(sig_x, sig_y);
+	sig_x_denom = CalcDenom(sig_x);
+	sig_y_denom = CalcDenom(sig_y);
+}
+
+double ParticleFilter::GauseExp(const double x, const double y, const double mu_x, const double mu_y) {
+	return -1*(std::pow((x - mu_x), 2)/sig_x_denom + std::pow((y - mu_y), 2)/sig_y_denom);
+}
+
+double ParticleFilter::CalcWeight(const double x, const double y, const double mu_x, const double mu_y) {
+	return gause_norm * exp(GauseExp(x, y, mu_x, mu_y));
+}
+
+double ParticleFilter::MeasurementProb(Particle& particle, Map map_landmarks) {
+	double prob = 1.0;
+	for (int i = 0; i < particle.associations.size(); i++) {
+		double landmark_id = particle.associations[i];
+		Map::single_landmark_s landmark = map_landmarks.landmark_list[landmark_id - 1];
+		const double weight = CalcWeight(particle.sense_x[i], particle.sense_y[i], landmark.x_f, landmark.y_f);
+		prob *= weight;
+	}
+	return prob;
 }
