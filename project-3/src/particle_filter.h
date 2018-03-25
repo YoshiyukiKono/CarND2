@@ -125,8 +125,8 @@ public:
 				target_landmark.landmark_list.push_back(landmark);
 			}
 		}
-		//return target_landmark;
-		return map_landmarks;
+		return target_landmark;
+		//return map_landmarks;
 	}
 
 	const double FindMaxDistance(const LandmarkObs &observed, const Map &map_landmarks) const {
@@ -171,10 +171,10 @@ public:
 			//assignLandmark(observed, map_landmarks, max_dist);
 			Map::single_landmark_s nearest_landmark = FindNearestLandmark(obs, map_landmarks);
 			associations.push_back(nearest_landmark.id_i);
-			sense_x.push_back(nearest_landmark.x_f);
-			sense_y.push_back(nearest_landmark.y_f);
-			//sense_x.push_back(obs.x);
-			//sense_y.push_back(obs.y);
+			//sense_x.push_back(nearest_landmark.x_f);
+			//sense_y.push_back(nearest_landmark.y_f);
+			sense_x.push_back(obs.x);
+			sense_y.push_back(obs.y);
 		}
 	}
 
@@ -182,8 +182,8 @@ public:
 
 		double x_part = particle.x;
 		double y_part = particle.y;
-		const double theta= -M_PI/2; // -90 degrees
-		//double theta = particle.theta;
+		//const double theta= -M_PI/2; // -90 degrees
+		double theta = particle.theta;
 		
 		std::vector<LandmarkObs> map_observations(observations.size());
 		//for (LandmarkObs obs : observations) {
