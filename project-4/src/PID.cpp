@@ -1,6 +1,7 @@
 #include "PID.h"
 #include <iostream>
 #include <limits>
+#include <math.h>
 
 using namespace std;
 
@@ -29,6 +30,7 @@ Get ready to channel your inner Vin Diesel and try to drive SAFELY as fast as po
 NOTE: you don't have to meet a minimum speed to pass.
 	*/
 void PID::Init(double Kp, double Ki, double Kd) {
+
 	p_error = 0;
 	i_error = 0;
 	d_error = 0;
@@ -42,9 +44,11 @@ void PID::Init(double Kp, double Ki, double Kd) {
 void PID::InitTwiddle(double Kp, double Ki, double Kd, double tol) {
 	isTwiddle = true;
 	best_error = std::numeric_limits<double>::max();
-	dp[0] = 0.1;//*Kp;//0.5;//1;
-	dp[1] = 0.001;//*Ki;//0.001;//1;
-	dp[2] = 0.1;//0.1*Kd;//0.5;//1;
+
+	dp[0] = 0.1*Kp;//0.5;//1;
+	dp[1] = 0.1*Ki;//0.001;//1;
+	dp[2] = 0.1*Kd;//0.5;//1;
+
 	p[0] = Kp;
 	p[1] = Ki;
 	p[2] = Kd;
@@ -68,22 +72,10 @@ void PID::UpdateError(double cte) {
 	if (isTwiddle) {
 		Train(tol);
 	} 
-	CalcSteerValue();
+	Calc();
 	num_step += 1;
 }
-void PID::CalcSteerValue() {
-	steer_value = TotalError();
-	AdjustSteerValue();
-}
-void PID::AdjustSteerValue() {
-	const double STEER_VAL_MAX = 1;//0.3;//0.5;//1;
-	const double STEER_VAL_MIN = -1*STEER_VAL_MAX;
-	if (steer_value > STEER_VAL_MAX) {
-		steer_value = STEER_VAL_MAX;
-	} else if (steer_value < STEER_VAL_MIN) {
-		steer_value = STEER_VAL_MIN;
-	} 
-}
+
 double PID::TotalError() {
 	// Calculate the total PID error.
 	return -Kp * p_error -Kd * d_error -Ki * i_error;
@@ -93,10 +85,20 @@ void PID::Train(double tol) {
 
 	if (num_step < NUM_TRAIN_STEPS) {
 		if (num_step >= NUM_TRAIN_STEPS/2) {
+			if (num_step == NUM_TRAIN_STEPS/2) {
+std::cout << "[RND(" << num_round << ") IDX(" << idx_p << ")] Start new cte:" << cte << " ERR:" << error << endl;
+			}
 			error += cte*cte;
+//std::cout << "[RND(" << num_round << ") IDX(" << idx_p << ")] cte:" << cte << " ERR:" << error << endl;
 		}
 	} else if (num_step == NUM_TRAIN_STEPS) {
 		error = error/int(num_step/2);
+		if (num_round == 0) {
+std::cout << "[RND(" << num_round << ")] cte:" << cte << " ERR:" << error << " <Skipp the first round as its error tends to be better than the comming rounds.>" << endl;
+			num_step = 0;
+			Restart();
+			return;
+		}
 		if (isFirstRun) {
 			best_error = error;
 			isFirstRun = false;
@@ -106,16 +108,10 @@ std::cout << "[Train] num_step:" << num_step << "/" << NUM_TRAIN_STEPS << " erro
 		num_step = 0;
 		Twiddle(tol);
 	} 
-	return; // TODO
+	return;
 }
 void PID::Twiddle(double tol) {
-//std::cout << "[Twiddle] error:" << error << std::endl;
-	//if (num_round >= NUM_TRAIN_ROUNDS) {
-	//	OnEndOfTraining();
-//}
-	//if (num_step >= NUM_TRAIN_STEPS) {
-	//	OnEndOfRound();
-//}
+
 std::cout << "[RND(" << num_round << ") IDX(" << idx_p << ")] BEST:" << best_error << " ERR:" << error << endl;
 std::cout << "[TOTAL] dp:" << dp[0] + dp[1] + dp[2] << " dp[0]:" << dp[0] << " dp[1]:" << dp[1] << " dp[2]:" << dp[2] << std::endl;
 
@@ -131,20 +127,14 @@ std::cout << "[Twiddle] Even after decreasing, larger than best, move to ANOTHER
 			p[idx_p] += dp[idx_p];
 			ReflectTwiddleParams();
 			dp[idx_p] *= 0.9;
-			//SetBest();//??--------------------------------------------------------
 		}
-		MoveNextParam();//idx_p += 1;
+		MoveNextParam();
 		isOver = false;
 		Restart();
 		return;
 	}
-	/*
-	if (idx_p >= 3) {
-		idx_p = 0;
-	}
-*/
+
 	if(dp[0]+dp[1]+dp[2] > tol) {
-		//if (idx_p < 3) {
 //std::cout << "[round(" << num_round << ") idx(" << idx_p << ")] best err:" << best_error << " err:" << error << " dp[0]:" << dp[0] << " dp[1]:" << dp[1] << " dp[2]:" << dp[2] << std::endl;
 			//TwiddleInLoop();
 			// Use the latest error
@@ -174,7 +164,6 @@ std::cout << "[Twiddle] Larger than best. try THIS PARAM again with decreasing t
 				Restart();
 				return;
 			}
-//}
 	} else {
 std::cout << "[Twiddle] Total dp value is larger than tolerance.So, training is completed. - dp[0]+dp[1]+dp[2]:" << (dp[0]+dp[1]+dp[2]) << " tol:" << tol << std::endl;
 		isTwiddle = false;
@@ -182,38 +171,7 @@ std::cout << "[Twiddle] Total dp value is larger than tolerance.So, training is 
 		SetBest();
 	}
 }
-void PID::TwiddleInLoop() {
-	//std::cout << "PID TwiddleInLoop!" << std::endl;
-	p[idx_p] += dp[idx_p];
-	// Use the latest error
-	//double error = cte; // Need to update error for every loop for idx_p (TODO)
-	if (error < best_error) { // improvement
-		best_error = error;
-		dp[idx_p] *=1.1;
-		idx_p += 1;
-	} else {
-		p[idx_p] -= 2*dp[idx_p]; // other direction
-		// TODO 
-		// error = A(p);
-		// go to the logic for the case error is larger than best error
-		// without changing the target dp.
-		isOver = true;
-		return;
-	}
-}
-void PID::TwiddleInOver() {
-	//std::cout << "PID TwiddleInOver!" << std::endl;
-	double error = cte;
-	if (error < best_error) {
-		best_error = error;
-		dp[idx_p] *= 1.05;
-	} else {
-		p[idx_p] += dp[idx_p];
-		dp[idx_p] *= 0.95;
-	}
-	isOver = false;
-	idx_p += 1;
-}
+
 void PID::Restart() {
 //std::cout << "[Restart]" << std::endl;
 	isReset = true;
@@ -229,7 +187,9 @@ void PID::Clear() {
 	d_error = 0;
 }
 bool PID::IsReset() {
-	if (isInitialized) {
+	if (!isTwiddle) {
+		return false;
+	} else if (isInitialized) {
 		isInitialized = false;
 		return true;
 	} else if (isReset) {
@@ -247,15 +207,12 @@ void PID::UpdateBest() {
 std::cout << "[UpdateBest] Kp:" << Kp << " Ki:" << Ki << " Kd:" << Kd << std::endl;
 }
 void PID::SetBest() {
-	/*
+
 	Kp = best_p[0];
 	Ki = best_p[1];
 	Kd = best_p[2];
-	*/
-	//?p[0] = Kp;
-	//?p[1] = Ki;
-	//?p[2] = Kd;
-std::cout << "[SetBest] Kp:" << Kp << " Ki:" << Ki << " Kd:" << Kd << std::endl;
+
+std::cout << "[SetBest] Kp:" << Kp << " Ki:" << Ki << " Kd:" << Kd << " best error:" << best_error << std::endl;
 }
 void PID::MoveNextParam() {
 	idx_p += 1;
@@ -263,20 +220,7 @@ void PID::MoveNextParam() {
 		idx_p = 0;
 	}
 }
-/*
-void PID::OnEndOfRound() {
-	num_round += 1;
-	num_step = 0;
-	isReset = true;
-	ReflectTwiddleParams();
-	std::cout << "[End Of Round: " << num_round << "] CTE:" << cte << " Kp:" << Kp << " Ki:" << Ki << "Kd:" << Kd << std::endl;
-}
-*/
-//void PID::OnEndOfTraining() {
-//	ReflectTwiddleParams();
-//	isTwiddle = false;
-//	std::cout << "[End Of Training] CTE:" << cte << " Kp:" << Kp << " Ki:" << Ki << "Kd:" << Kd << std::endl;
-//}
+
 void PID::ReflectTwiddleParams() {
 	if(idx_p == 0) {
 		this->Kp = p[0];
@@ -285,5 +229,34 @@ void PID::ReflectTwiddleParams() {
 	} else if(idx_p == 2) {
 		this->Kd = p[2];
 	}
-	std::cout << "[Reflect] Kp:" << Kp << " Ki:" << Ki << " Kd:" << Kd << std::endl;
+	std::cout << "[Reflect] Kp:" << Kp << " Ki:" << Ki << " Kd:" << Kd << "(Best - Kp:" << best_p[0] << " Ki:" << best_p[1] << " Kd:" << best_p[2] << ")" <<  std::endl;
+}
+
+void SteeringControler::Calc() {
+	steer_value = TotalError();
+	AdjustSteerValue();
+}
+void SteeringControler::AdjustSteerValue() {
+	const double STEER_VAL_MAX = 1;
+	const double STEER_VAL_MIN = -1*STEER_VAL_MAX;
+	if (steer_value > STEER_VAL_MAX) {
+		steer_value = STEER_VAL_MAX;
+	} else if (steer_value < STEER_VAL_MIN) {
+		steer_value = STEER_VAL_MIN;
+	} 
+}
+
+void ThrottleControler::Calc() {
+	throttle_value = 1 - fabs(TotalError());
+	AdjustThrottleValue();
+}
+void ThrottleControler::AdjustThrottleValue() {
+	const double THROTTLE_VAL_MAX = 1;
+	const double THROTTLE_VAL_MIN = -1*THROTTLE_VAL_MAX;
+	if (throttle_value > THROTTLE_VAL_MAX) {
+		throttle_value = THROTTLE_VAL_MAX;
+	} else if (throttle_value < THROTTLE_VAL_MIN) {
+std::cout << "[AdjustThrottleValue] throttle_value:" << throttle_value << std::endl;
+		throttle_value = THROTTLE_VAL_MIN;
+	} 
 }

@@ -32,33 +32,51 @@ int main()
 {
   uWS::Hub h;
 
-  PID pid;
+  //PID pid;
+  SteeringControler pid;
+  ThrottleControler ctrl_throttle;
   // TODO: Initialize the pid variable.
-  /*
-  double K_P = 0.134611;//1.3;
-  double K_I = 0.000270736;//0.01;
-  double K_D = 3.05349;//0.3;//5.0;
-  */
-  double K_P = 1;//0.134611;//1.3;
-  double K_I = 0.01;//0.000270736;//0.01;
-  double K_D = 5;//3.05349;//0.3;//5.0;
   
-  double TOL = 0.1;//5;//2;
+  // Adapted from Q&A https://www.youtube.com/watch?v=YamBuzDjrs8&index=4&list=PLAwxTw4SYaPnfR7TzRZN-uxlxGbqxhtm2
+  //const double K_P = -0.5;
+  //const double K_I = 0;
+  //const double K_D = -0.5;
+  
+  const double TOL = 0.1;//5;//2;
 
-  bool FLG_TWIDDLE = true;
+  const bool FLG_TWIDDLE = false;//true;//true;
+  
   if (FLG_TWIDDLE == true) {
-    //pid.Init(1, 1, 1);
     //pid.Init(K_P, K_I, K_D);
-    pid.InitTwiddle(K_P, K_I, K_D, TOL);
+    //pid.InitTwiddle(1.1, 0.0001, 5, 0.1);
+    //pid.InitTwiddle(0.1, 0.0001, 5, 0.1);
+    //pid.InitTwiddle(0.5, 0.0001, 5, 0.1);
+    pid.InitTwiddle(0.2, 0.0001, 3, 0.1);
+    //pid.InitTwiddle(-1, 0.0001, -0.5, 0.1);
+    //pid.InitTwiddle(K_P, K_I, K_D, TOL);
   } else {
-    pid.Init(K_P, K_I, K_D);
+    pid.Init(0.16, 0.0001, 3);
+    //pid.Init(0.16, 0.0001, 3);
+    //pid.Init(0.5, 0.0001, 5);
+    //pid.Init(K_P, K_I, K_D);
   }
-  //double tau_p = 0.2;
-  //double tau_i = 0.004;
-//double tau_d = 0.3;
+  ////////////////////////////////////////////////
+  //ctrl_throttle.Init(0.5, 0.00001,0.3);//1); It did NOT workd
+  //ctrl_throttle.Init(0.75, 0.00001,0.3);//1); It worked so so.
+  //ctrl_throttle.Init(0.8, 0.00001,0.3);//1); It worked so so.
+  //ctrl_throttle.Init(0.8, 0.0,0.3); // Drive 2 round BEST?
+  ctrl_throttle.Init(0.8, 0.0,0.3);
+  //ctrl_throttle.Init(0.75, 0.0,0.3); // Better
+  //ctrl_throttle.Init(0.8, 0.0,1.2); //DO NOT WORK in 2nd round
+  //ctrl_throttle.Init(0.8, 0.0,1);//1); Somehow
+  //ctrl_throttle.Init(0.8, 0.0,0.8);//1);DO NOT
+  
+  //ctrl_throttle.Init(0.8, 0.0,0.3);//1); It somehow work 
+  //ctrl_throttle.Init(1, 0,1); It did NOT work.
 
 
-  h.onMessage([&pid](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
+  //h.onMessage([&pid](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
+  h.onMessage([&pid, &ctrl_throttle](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
     // The 2 signifies a websocket event
@@ -82,22 +100,23 @@ int main()
           */
           // DEBUG
           //std::cout << "CTE: " << cte << " Speed: " << speed << std::endl;
-          
-          if (speed < 0.1) {
+          double throttle_value;
+
+          if (speed < 0.1 & FLG_TWIDDLE) {
 std::cout << "Will Restart -> CTE: " << cte << " Speed: " << speed << std::endl;
             std::string msg = "42[\"reset\",{}]";
             ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
           }
           pid.UpdateError(cte);
-          //if (speed < 0.1) {
-          //	  pid.Restart();
-  //}
+          ctrl_throttle.UpdateError(fabs(cte));
+          
           if (pid.IsReset()) {
 //std::cout << "[RESET] CTE:" << cte << " Kp:" << pid.Kp << " Ki:" << pid.Ki << " Kd:" << pid.Kd << std::endl;
             std::string msg = "42[\"reset\",{}]";
             ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
           }
           steer_value = pid.steer_value;
+          throttle_value = ctrl_throttle.throttle_value;
 
           // DEBUG
           //std::cout << "Kp:" << pid.Kp << " Ki:" << pid.Ki << "Kd:" << pid.Kd << std::endl;
@@ -106,10 +125,9 @@ std::cout << "Will Restart -> CTE: " << cte << " Speed: " << speed << std::endl;
 
           json msgJson;
           msgJson["steering_angle"] = steer_value;
-          msgJson["throttle"] = 0.3;
+          msgJson["throttle"] = 0.3;//throttle_value;//0.3;
 
           auto msg = "42[\"steer\"," + msgJson.dump() + "]";
-//std::cout << msg << std::endl;
 
           ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
         }

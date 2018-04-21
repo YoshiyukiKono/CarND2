@@ -18,7 +18,7 @@ public:
   double Kd;
 
   double cte;
-  double steer_value;
+  //double steer_value;
 
   double best_error;
   double error;
@@ -59,13 +59,14 @@ private:
   double best_p[3];
   bool isTwiddle;
   
-  void CalcSteerValue();
-  void AdjustSteerValue();
+  virtual void Calc() = 0;
+  //void CalcSteerValue();
+  //void AdjustSteerValue();
   
   void Train(double tol);
   void Twiddle(double tol);
-  void TwiddleInLoop();
-  void TwiddleInOver();
+  //void TwiddleInLoop();
+  //void TwiddleInOver();
   void ReflectTwiddleParams();
   
   void UpdateBest();
@@ -85,9 +86,21 @@ private:
   
   double tol;
 
-  //void OnEndOfRound();
-  //void OnEndOfTraining();
-
 };
 
+class SteeringControler : public PID {
+public:
+  double steer_value;
+private:
+  void Calc();
+  void AdjustSteerValue();
+};
+
+class ThrottleControler : public PID {
+public:
+  double throttle_value;
+private:
+  void Calc();
+  void AdjustThrottleValue();
+};
 #endif /* PID_H */
