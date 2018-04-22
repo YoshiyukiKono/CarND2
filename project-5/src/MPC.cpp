@@ -108,7 +108,7 @@ class FG_eval {
 	  // Adapted from Q&As https://www.youtube.com/watch?v=bOQuhpz3YfU&index=5&t=1726s&list=PLAwxTw4SYaPnfR7TzRZN-uxlxGbqxhtm2
 	  AD<double> f0 = coeffs[0] + coeffs[1] * x0 + coeffs[2] * x0 * x0 + coeffs[3]*x0*x0*x0;
 	  AD<double> psides0 = CppAD::atan(3*coeffs[3]*x0*x0 + 2*coeffs[2]*x0 + coeffs[1]);
-	  
+
 	  // Here's `x` to get you started.
 	  // The idea here is to constraint this value to be 0.
 	  //

@@ -32,6 +32,9 @@ string hasData(string s) {
   return "";
 }
 
+#ifndef POLY_H
+#define POLY_H
+
 // Evaluate a polynomial.
 double polyeval(Eigen::VectorXd coeffs, double x) {
   double result = 0.0;
@@ -64,6 +67,8 @@ Eigen::VectorXd polyfit(Eigen::VectorXd xvals, Eigen::VectorXd yvals,
   auto result = Q.solve(yvals);
   return result;
 }
+
+#endif
 
 int main() {
   uWS::Hub h;
@@ -118,7 +123,8 @@ int main() {
           px = v*latency;
           psi = 0 + v*steer_value/Lf*latency;
           v = v + throttle_value*latency;
-          double epsi = psi - atan(coeffs[1]);
+          double epsi = psi - atan(coeffs[1]);//CppAD::atan(3*coeffs[3]*x0*x0 + 2*coeffs[2]*x0 + coeffs[1])
+          //double epsi = psi - atan(3*coeffs[3]*px*px + 2*coeffs[2]*px + coeffs[1]);
           cte += v*sin(epsi)*latency;
 
           Eigen::VectorXd state(6);

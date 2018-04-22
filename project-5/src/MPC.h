@@ -3,12 +3,12 @@
 
 #include <vector>
 #include "Eigen-3.3/Eigen/Core"
+#include "Eigen-3.3/Eigen/QR"
 
 using namespace std;
 
 class MPC {
  public:
-  bool isInitialized;
   MPC();
 
   virtual ~MPC();
