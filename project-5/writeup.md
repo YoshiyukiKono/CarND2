@@ -20,6 +20,7 @@
 * epsi : psi - atan(coeffs[1])
 
 [Model Update Equation]
+
 | Equation        | Remarks   | 
 |:-------------:|:-------------|
 | x_[t] = x[t-1] + v[t-1] * cos(psi[t-1]) * dt | x position |
@@ -28,6 +29,11 @@
 | v_[t] = v[t-1] + a[t-1] * dt | velocity |
 | cte[t] = f(x[t-1]) - y[t-1] + v[t-1] * sin(epsi[t-1]) * dt | the current cross track error plus the change in error caused by the vehicle's movement |
 | error_psi[t] = psi[t] - desired_psi[t-1] + v[t-1] * delta[t-1] / Lf * dt | the desired orientation subtracted from the current orientation |
+
+
+| Equation        | Remarks   | 
+|:-------------:|:-------------|
+
 
 * f(x[t-1]): coeffs[0] + coeffs[1] * x0 + coeffs[2] * x0 * x0 + coeffs[3]*x0*x0*x0
 * desired_psi[t-1]: atan(3*coeffs[3]*x0*x0 + 2*coeffs[2]*x0 + coeffs[1])
